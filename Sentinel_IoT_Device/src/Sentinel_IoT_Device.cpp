@@ -25,31 +25,46 @@
 
 
 
-// Include Particle Device OS APIs
-#include "Particle.h"
-//#include "MAX6675_RK.h"
-#include "MAX6675.h"
-#include "Adafruit_BME280.h"
-#include "Adafruit_GFX.h"
-#include "Adafruit_SSD1306.h"
-#include "neopixel.h"
-#include "IoTTimer.h"
-#include "Button.h"
-#include "bitmaps.h"
-#include "wemo.h"  
-#include "hue.h" 
+
+/////////////--------------- INCLUDE LIBRARIES ---------------////////////////
+
+
+
+#include "Particle.h" // Include Particle Device OS APIs
+#include "MAX6675.h" // Thermocouple library
+#include "Adafruit_BME280.h" // BME280 environmental sensor library
+#include "Adafruit_GFX.h" // Adafruit graphics library for OLED display
+#include "Adafruit_SSD1306.h" // Adafruit library for SSD1306 OLED display
+#include "IoTTimer.h" // IoTTimer library for timing events
+#include "Button.h" // Button library for handling button input
+#include "bitmaps.h" // Bitmap graphics for OLED display
+#include "wemo.h"  // Wemo control library
+#include "hue.h" // Hue control library
+
+
+
+
+/////////////--------------- DEFINE SYSTEM MODE AND THREADING ---------------////////////////
+
+
 
 //  Set system mode, when to connect to wifi, whether to run code before connected
 SYSTEM_MODE(SEMI_AUTOMATIC);
-// SYSTEM_MODE(MANUAL); //control logging into classroom router, add delay if needed);
+
+//  SYSTEM_MODE(MANUAL); //control logging into classroom router, add delay if needed);
 
 //  Whether to run code in separate threads before connected.
-//  Enabled allow code to execute before fully connected
+//      Enabled allow code to execute before fully connected
 SYSTEM_THREAD(ENABLED); //include delay in setup if wifi needs more connection time for Hues and Wemos
+
+
+
 
 ///////////--------------- THERMOCOUPLE AND BME OBJECTS ---------------///////////
 
-// Defining the device-is-powered-on indicator LED pin
+
+
+//  Defining the device-is-powered-on indicator LED pin
 const int POWER_LEDPIN = D2;
 
 //  Defining the thermocouple object, variables, and CS pin
@@ -61,45 +76,57 @@ float tempHigh = 200.00; //high temp threshold for alerts, in F
 float tempLow = 185.00; //low temp threshold for alerts, in F
 float boilingPointF = 212.0; // variable to store calculated boiling point based on altitude
 
-// Defining the BME environmental sensor object
+//  Defining the BME environmental sensor object
 Adafruit_BME280 bme;
 const int hexAddress = 0x76; //address for the BME
 bool statusBME; //variable to make sure BME is working
 float pressPA, pressInHg, humidRH; //variables for BME280 readings, stored for current and future features
 
+
+
+
+
 ///////////--------------- TIMER OBJECTS ---------------///////////
 
+
+
 //  Defining the IoTTimer object for holding the loading screen
-//  Hold loading screen for 20 seconds, then go to temp screen
+//      Hold loading screen for 20 seconds, then go to temp screen
 IoTTimer loadingScreenTimer;
 unsigned int loadingScreenMsec = 20000; //variable for how long the loading screen is held
 int unsigned long loadingScreenStartTime = 0; //variable to track when the loading screen starts     
 
 //  Defining the IoTTimer object for reading the thermocouple every half second
-IoTTimer timer; 
-unsigned int msec = 500; //variable for the IoTTimer
-int unsigned long timerStartTime = 0; //variable to track when the cycle timer starts  
+IoTTimer tempReadTimer; 
+unsigned int tempReadMsec = 500; //variable for the IoTTimer
+int unsigned long tempReadStartTime = 0; //variable to track when the cycle timer starts  
 
 //  Defining the IoTTimer object for the monitoring cycle, which is 10 minutes, or 600,000 milliseconds
-IoTTimer cycleTimer;
+IoTTimer hotProcessMonitorTimer;
 unsigned int cycleMsec = 600000; //variable for how long the monitoring cycle is
 int unsigned long cycleStartTime = 0; //variable to track when the monitoring cycle starts
 
-// Defining IoTTimer object for long press to cancel cycle
-IoTTimer longPressTimer;
+//  Defining IoTTimer object for long press to cancel cycle
+IoTTimer longPressCancelTimer;
 unsigned int longPressMsec = 2000; //variable for how long the long press to cancel needs to be
-int unsigned long longPressCancelStartTime = 0; //variable to track when the long press to cancel starts
+int unsigned long longPressStartTime = 0; //variable to track when the long press to cancel starts
 
 //  Defining the IoTTImer object for holding the Cancel screen
-//  Hold cancel screen for 5 seconds, then go back to temp screen
-//  This gives time for processes to cancel and time for the user to see the cancel screen before it goes away.
-IoTTimer cancelScreenTimer;
-unsigned int cancelScreenMsec = 5000; //variable for how long the cancel screen is held
-int unsigned long cancelScreenStartTime = 0; //variable to track when the cancel screen starts
+//      Hold cancel screen for 5 seconds, then go back to temp screen
+//      This gives time for processes to cancel and time for the user to see the cancel screen before it goes away.
+IoTTimer cancelWaitTimer;
+unsigned int cancelWaitMsec = 5000; //variable for how long the cancel screen is held
+int unsigned long cancelWaitStartTime = 0; //variable to track when the cancel screen starts
+
+
+
+
 
 ///////////--------------- OLED, HUE, WEMO, AND BUTTON OBJECTS ---------------///////////
 
-//   Defining OLED display object
+
+
+//  Defining OLED display object
 const int OLED_RESET=-1;
 Adafruit_SSD1306 display(OLED_RESET);
 
@@ -119,7 +146,11 @@ unsigned long buttonPressStartTime = 0; //for timing the long press
 bool isButtonBeingHeld = false; 
 const unsigned long LONG_PRESS_CANCEL = 2000; // Press to cancel (hold for 2 seconds)
 
+
+
 ///////////--------------- SCREEN STATE MANAGEMENT ---------------///////////
+
+
 
 //  Internal state constants to keep track of the current state of the OLED display
 enum ScreenState {
@@ -144,18 +175,20 @@ void longPressCancelCycle();
 
 ScreenState currentScreen = SCREEN_LOADING; // set inital screen state when powering on
 
-// Initializations, runs once at startup
+
 void setup() {
+
+//////////////////------------INITIALIATIONS THAT RUN ONCE---------------////////////////
 
     //  Initiate serial monitor
     Serial.begin(9600);
     waitFor(Serial.isConnected,10000);
 
-    // Turn on the powered on indicator LED 
+    //  Turn on the powered on indicator LED 
     pinMode(POWER_LEDPIN, OUTPUT);
     digitalWrite(POWER_LEDPIN, HIGH); 
 
-    // Initiate Thermocouple
+    //  Initiate Thermocouple
     thermocouple.begin(THERMO_CSPIN); // Use D5 as Chip Select (CS) for SPI
 
     //  Initiate the BME280 (environmental sensor)
@@ -164,8 +197,8 @@ void setup() {
     //     Serial.printf("BME at address0x%02X failed to start", hexAddress);
     // }
 
-    //  start the IoTTimer
-    timer.startTimer(msec);
+    //  start the IoTTimers
+   millis(); //start the millis timer for the IoTTimers to use for timing events
 
     //  initialize the OLED display
     display.begin(SSD1306_SWITCHCAPVCC, 0x3C);
@@ -175,7 +208,7 @@ void setup() {
     display.display(); 
 
     //  Initialize the wemo and the Hue bulbs - have them connect to wifi, 
-    //clear any previous credentials if needed, and set it to our router, IoTNetwork
+    //      clear any previous credentials if needed, and set it to our router, IoTNetwork
     pinMode(D7, OUTPUT); // set D7 as the button to turn on and off the wemo, outputs a click.
     WiFi.on();
     //WiFi.clearCredentials();           // uncomment to clear previous wifi creds when needed 
@@ -188,86 +221,61 @@ void setup() {
 }
 
 void loop() {
-
+//////////////------------MAIN LOOP THAT RUNS CONTINUOUSLY---------------////////////////
     
-    // OLED Display during each event
-    switch (currentScreen) {
+
+    //  OLED Display during each event and calls functions to update the display 
+    //      and take readings at the appropriate times
+    switch (currentScreen) {    
         case SCREEN_LOADING:
             displayLoadingScreen(); //a function that displays the loading screen
-            // Wait a few seconds and go to the next screen
-            if (millis() > 20000) { // Show loading for 5 seconds
+            if (loadingScreenTimer.isTimerReady()) { //if 20 seconds has passed, go to temp screen      
                  currentScreen = SCREEN_TEMP_MONITOR;
-            }
+            }   
             break;
 
         case SCREEN_TEMP_MONITOR:
             displayTempScreen(); //fn that shows just the temp
-            if (startOrCancelCycleButton.isClicked()) {
+            if (startOrCancelCycleButton.isClicked() and !isButtonBeingHeld) {
                 currentScreen = SCREEN_CYCLE_IN_PROGRESS;
-                timerStartTime = millis();
-                timer.startTimer(500); //start the timer for the taking readings cycle
-            }
+                
             break;
 
         case SCREEN_CYCLE_IN_PROGRESS:
             displayCycleScreen(); //fn that shows temp and timer counting up
 
-            if (timeSoFar >= 600000 and currentScreen == SCREEN_CYCLE_IN_PROGRESS) {
-            
+    
+            if  (hotProcessMonitorTimer.isTimerReady()) { //if 10 min passes, cycle is complete 
+                
                 currentScreen = SCREEN_SUCCESS;
-            }
-
-            if (startOrCancelCycleButton.isClicked() and !isButtonBeingHeld) {
-        
-                currentScreen = SCREEN_CYCLE_IN_PROGRESS;
-                timerStartTime = millis();
-                timer.startTimer(500); //start the timer for the cycle
             }
         
             if (startOrCancelCycleButton.isClicked()) { //use is clicked or is pressed? 
-            
-                currentScreen = SCREEN_CANCELLING
-                displayCancellingScreen(); //fn that shows cancel screen
+                    longPressStartTime = millis();
+                    isButtonBeingHeld = true;
+                //go to cancelling screen, which will also cancel the cycle and reset things
+                currentScreen = SCREEN_CANCELLING; 
             }
             break;
 
-            //alerts - move into custom functions below 
-        case (tempF < tempLow) {
-                currentScreen = SCREEN_ALERT_LOW;
-                displayLowAlertScreen(); //fn that shows low temp alert screen
-                
-            break;
-           
-        case (tempF > tempHigh) {
-                currentScreen = SCREEN_ALERT_HIGH;
-                displayHighAlertScreen(); //fn that shows high temp alert screen
-                
-            break;
-            }
-            
-    
-        case (timeSoFar >= 600000 and currentScreen == SCREEN_CYCLE_IN_PROGRESS) {
-            currentScreen = SCREEN_SUCCESS;
-            }
-            break;
-        case SCREEN_CYCLE_IN_PROGRESS:
-            displayCycleScreen(); //fn that shows temp and timer counting up
-            // temp causes screen to go to either alert low, alert high, cancel, or success
-
-            break;
         case SCREEN_ALERT_LOW: 
+            displayLowAlertScreen(); //fn that shows low temp alert screen
+            break;
             
         case SCREEN_ALERT_HIGH: 
+            displayHighAlertScreen(); //fn that shows high temp alert screen
+            break;
             
         case SCREEN_CANCELLING: 
             displayCancellingScreen(); //fn that shows cancel screen
+            if (cancelWaitTimer.isTimerReady()) { //if 5 seconds has passed, go back to temp monitor screen
+            currentScreen = SCREEN_TEMP_MONITOR; //go back to temp monitor after cancelling
+            }
              
-                }
             break;
         case SCREEN_SUCCESS: 
             displaySuccessScreen(); //fn that shows a sucess screen, timer still counting up
             break;
-
 
         default:
             displayTempScreen(); //default to temp screen just in case
@@ -284,13 +292,24 @@ void loop() {
         //tempF = (9.0/5.0)* tempC + 32;
         //Serial.printf("Temperature:%0.2f or %0.2f\n",tempC,tempF);
     }
+}
 
-    //custom functions here
+
+
+
+   /////////////-----------CUSTOM FUNCTIONS FOR DIFFERENT CASES----------//////////////
+
+
 
     void displayLoadingScreen() {
-        // Opening Screen: Left image is a steaming pot. Title is: Saucemaker's Sentinel. 
-        // Right is a sentinel shield graphic with spoon and knife instead of swords. 
-        // Lower text: boiling point here is [insert boiling point according to altitude]
+
+    //----LOADING SCREEN Shows logo and project name-------//
+
+        //start the timer for how long the loading screen is held
+        loadingScreenTimer.startTimer(loadingScreenMsec);   
+        
+         // Read TC here for most up-to-date value before display
+
         display.clearDisplay();
         display.drawBitmap(0, 0, BITMAP_POT, 40, 40, WHITE); // Left image
         display.drawBitmap(88, 0, BITMAP_SHIELD, 40, 40, WHITE); // Right image
@@ -298,21 +317,31 @@ void loop() {
         display.setTextSize(1);
         display.printf("Saucemaker's Sentinel\n");
         //display.printf("Boiling point: %.1f F", boilingPointF); doesn't fit
-        display.display();      
+        display.display();  
+        // Redundancy to kill any lingering alerts, reset wemos, and turn off hue bulbs
+        setHue(BULB1,false,HueRed,255,255); //Set Hue bulbs to off
+        setHue(BULB1,false,HueBlue,255,255); //Set Hue bulb to blue for alert
+        wemoWrite(WEMO_RADIO, LOW);    
     }     
     
+
+
+
     void displayTempScreen  () {
-        // Temperature screen: Left image is a thermometer. 
-        // Temp is displayed in F and C, as large as possible. 
-        // Lower text says: Press Start to begin monitoring
+
+    //----TEMP SCREEN Shows just the temp-------//
+
+
         display.clearDisplay();
 
-        // Start timer for TC readings for every half-second
-        timerStartTime = millis();
-        timer.startTimer(500); //start the timer for the taking readings cycle
-
         // Read TC here for most up-to-date value before display
-        thermocouple.read();
+            // Start timer for TC readings for every half-second
+        tempReadTimer.startTimer(tempReadMsec);
+        if (tempReadTimer.isTimerReady()) { //if 500 milliseconds has passed, read temp again
+            thermocouple.read();   
+            tempReadTimer.startTimer(tempReadMsec); //restart the timer for the next reading
+        }   
+             
         tempC = thermocouple.getTemperature();
         tempF = (9.0/5.0)* tempC + 32;
 
@@ -328,16 +357,32 @@ void loop() {
         display.setCursor(0, 55);
         display.printf("Press Start to begin monitoring");
         display.display();
+
+        // Redundancy to kill any lingering alerts, reset wemos, and turn off hue bulbs
+        setHue(BULB1,false,HueRed,255,255); //Set Hue bulbs to off
+        setHue(BULB1,false,HueBlue,255,255); //Set Hue bulb to blue for alert
+        wemoWrite(WEMO_RADIO, LOW);
     }
 
+
+
     void displayCycleScreen() {
-        //CYCLE IN PROGRESS: On the left is the thermometer graphic still. 
-        //Also the temp is still displayed. And also a timer is there counting up. 
+        
+    //----CYCLE IN PROGRESS SCREEN Shows temp, and timer counting up-------//
+
         display.clearDisplay();
-        // Read TC here
-        thermocouple.read();
-        tempC = thermocouple.getTemperature();
-        tempF = (9.0/5.0)* tempC + 32;
+
+        //start the cycle timer for 10 minutes
+        hotProcessMonitorTimer.startTimer(cycleMsec);      
+        cycleStartTime = millis(); //track when the cycle starts for the timer display
+        isButtonBeingHeld = false; //confirm the button hold state was not a long press 
+            
+        // Read TC here for most up-to-date value before display
+        // Start timer for TC readings for every half-second
+        if (tempReadTimer.isTimerReady()) { //if 500 milliseconds has passed, read temp again
+            thermocouple.read();   
+            tempReadTimer.startTimer(tempReadMsec); //restart the timer for the next reading
+        } 
 
         display.drawBitmap(0, 0, BITMAP_THERMO, 40, 40, WHITE); // Thermometer graphic
         display.setTextSize(2);
@@ -345,24 +390,44 @@ void loop() {
         display.printf("%.0fF", tempF);
         
         // Timer display
-        unsigned long timeSoFar = millis() - timerStartTime;
+        unsigned long timeSoFar = millis() - cycleStartTime;
         unsigned long minutes = timeSoFar / 60000;
         unsigned long seconds = (timeSoFar % 60000) / 1000;
         display.setCursor(0, 30);
         display.printf("Time: %02lu:%02lu", minutes, seconds); //lu is unsigned long
         display.display();
+
+        // Redundancy to kill any lingering alerts, reset wemos, and turn off hue bulbs
+        setHue(BULB1,false,HueRed,255,255); //Set Hue bulbs to off
+        setHue(BULB1,false,HueBlue,255,255); //Set Hue bulb to blue for alert
+        wemoWrite(WEMO_RADIO, LOW);
     }
 
+
+
     void displaySuccessScreen() {
-        // SUCCESS SCREEN: Left image is a shield with a check mark on it. 
-        //Don't think I have room for a graphic, unless it was momentary
-        // SUCCESS! Your sauce is in range. 
-        // Timer is still displayed at the bottom, counting up.
+    
+    //----CYCLE SUCCESS SCREEN Shows temp, and timer counting up-------//
+
+
         display.clearDisplay();
+
+        // Read TC here for most up-to-date value before display
+        // Start timer for TC readings for every half-second
+        if (tempReadTimer.isTimerReady()) { //if 500 milliseconds has passed, read temp again
+            thermocouple.read();   
+            tempReadTimer.startTimer(tempReadMsec); //restart the timer for the next reading
+        } 
 
         unsigned long timeSoFar = millis() - timerStartTime;
         unsigned long minutes = timeSoFar / 60000;
         unsigned long seconds = (timeSoFar % 60000) / 1000;
+
+        //Redundancy to kill any lingering alerts
+            setHue(BULB1,false,HueRed,255,255); //Set Hue bulbs to off
+            setHue(BULB1,false,HueBlue,255,255);
+            //wemoWrite(WEMO_STOVE, LOW); //doesn't mess with stove unless you want it to!
+            wemoWrite(WEMO_RADIO, LOW);
 
         display.drawBitmap(0, 0, BITMAP_SHIELD, 40, 40, WHITE);
 
@@ -377,15 +442,20 @@ void loop() {
         display.display();
     }
 
-    void displayLowAlertScreen() {
-        // LOW TEMP ALERT: Left image is a thermometer [could add a snowflake on it one day] 
-        // Text says: Too cold! Turn up the heat! //is there room for text?
-        display.clearDisplay();
 
-        // Read TC here
-        thermocouple.read();
-        tempC = thermocouple.getTemperature();
-        tempF = (9.0/5.0)* tempC + 32;
+
+    void displayLowAlertScreen() {
+
+    //--------LOW TEMP ALERT SCREEN Shows temp, and alert message-------//
+
+        display.clearDisplay()
+
+        // Read TC here for most up-to-date value before display
+        // Start timer for TC readings for every half-second
+        if (tempReadTimer.isTimerReady()) { //if 500 milliseconds has passed, read temp again
+            thermocouple.read();   
+            tempReadTimer.startTimer(tempReadMsec); //restart the timer for the next reading
+        } 
 
         //Hue and Wemo alerts for low temp
         if (tempF < tempLow) {
@@ -409,10 +479,12 @@ void loop() {
         // Text says: Too hot! Turn down the heat! // is room for text?
         display.clearDisplay();
 
-        // Read TC here
-        thermocouple.read();
-        tempC = thermocouple.getTemperature();
-        tempF = (9.0/5.0)* tempC + 32;
+       // Read TC here for most up-to-date value before display
+        // Start timer for TC readings for every half-second
+        if (tempReadTimer.isTimerReady()) { //if 500 milliseconds has passed, read temp again
+            thermocouple.read();   
+            tempReadTimer.startTimer(tempReadMsec); //restart the timer for the next reading
+        } 
 
         //Hue and Wemo alerts for high temp
         if (tempF > tempHigh) {
@@ -434,7 +506,15 @@ void loop() {
     void displayCancellingScreen() {
         // CANCELLING SCREEN: Left image is a waiting timer graphic with hourglass
         // Text says: Cancelling... Please wait.
-        
+
+        cancelWaitTimer.startTimer(cancelWaitMsec); //start the timer for how long the cancel screen is held
+
+        // Read TC here for most up-to-date value before display
+        // Start timer for TC readings for every half-second
+        if (tempReadTimer.isTimerReady()) { //if 500 milliseconds has passed, read temp again
+            thermocouple.read();   
+            tempReadTimer.startTimer(tempReadMsec); //restart the timer for the next reading
+        }
         //  Cancel all alerts, reset wemos and turn off hue bulbs
         setHue(BULB1,false,HueRed,255,255); //Set Hue bulbs to off
         setHue(BULB1,false,HueBlue,255,255); //Set Hue bulb to blue for alert
@@ -449,24 +529,8 @@ void loop() {
         display.printf("Cancelling... Please wait.");
         display.display();
     
-        timerStartTime = millis();  
-        timer.startTimer(2000);
-        if (timer.isTimerReady()) {   //  Makes you wait a few seconds while it cancels to give time for processes
-            currentScreen = SCREEN_TEMP_MONITOR; //go back to temp monitor after cancelling
+      
         }
-    }
-
-    void longPressCancelCycle(unsigned long buttonPressStartTime) {
-        // If the button is being held and the time exceeds the long press threshold, cancel the cycle
-        buttonPressStartTime = millis(); //start timing the long press when button is clicked
-        if (isButtonBeingHeld and (millis() - buttonPressStartTime >= LONG_PRESS_CANCEL)) {
-            isButtonBeingHeld = false; // reset the hold state
-        }
-    }
-    
-    void triggerWemo(const char* event) { //
-        // Function to trigger Wemo events
-    }
 
 
  
