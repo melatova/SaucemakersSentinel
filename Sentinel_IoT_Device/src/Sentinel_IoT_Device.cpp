@@ -22,6 +22,10 @@
 
 // delete unnecessary things
 
+// timers - some issues. .  match correct timers to purpose
+
+//  move updating temp, checking for long press, updating internal state, and drawing screen to loop
+
 
 
 
@@ -164,6 +168,7 @@ enum ScreenState {
 };
 
 //  Declare custom functions for OLED display and long press cancel
+void updateTemperature();
 void displayLoadingScreen();
 void displayTempScreen();
 void displayCycleScreen();
@@ -223,23 +228,30 @@ void setup() {
 void loop() {
 //////////////------------MAIN LOOP THAT RUNS CONTINUOUSLY---------------////////////////
     
-
+    
     //  OLED Display during each event and calls functions to update the display 
     //      and take readings at the appropriate times
+    //  Start all timers here, not in custom functions
     switch (currentScreen) {    
         case SCREEN_LOADING:
+           {}
+            if (!loadingScreenTimer.isTimerReady()){
+                loadingScreenTimer.startTimer(loadingScreenMsec); //start the timer for how long the loading screen is held
+            }
             displayLoadingScreen(); //a function that displays the loading screen
             if (loadingScreenTimer.isTimerReady()) { //if 20 seconds has passed, go to temp screen      
                  currentScreen = SCREEN_TEMP_MONITOR;
             }   
+
             break;
 
         case SCREEN_TEMP_MONITOR:
             displayTempScreen(); //fn that shows just the temp
-            if (startOrCancelCycleButton.isClicked() and !isButtonBeingHeld) {
+            if (startOrCancelCycleButton.isClicked() && !isButtonBeingHeld) {
                 currentScreen = SCREEN_CYCLE_IN_PROGRESS;
                 
             break;
+            }
 
         case SCREEN_CYCLE_IN_PROGRESS:
             displayCycleScreen(); //fn that shows temp and timer counting up
@@ -292,14 +304,43 @@ void loop() {
         //tempF = (9.0/5.0)* tempC + 32;
         //Serial.printf("Temperature:%0.2f or %0.2f\n",tempC,tempF);
     }
-}
+
 
 
 
 
    /////////////-----------CUSTOM FUNCTIONS FOR DIFFERENT CASES----------//////////////
 
+   //----------FUNCTION TO UPDATE TEMPERATURE READINGS and convert C to F-------//
+    void updateTemperature() {
+        if (tempReadTimer.isTimerReady()) {
+            thermocouple.read();
+            tempC = thermocouple.getTemperature();
+            tempF = (9.0/5.0) * tempC + 32;
+            tempReadTimer.startTimer(tempReadMsec);
+        }
+    }
 
+    //----------FUNCTION TO CHECK FOR LONG PRESS TO CANCEL CYCLE-------//
+    //Call this in the main loop
+    void checkButtonHold() {
+
+    if (startOrCancelCycleButton.isPressed()) {
+
+        if (!isButtonBeingHeld) {
+            buttonPressStartTime = millis();
+            isButtonBeingHeld = true;
+        }
+
+        if (millis() - buttonPressStartTime > LONG_PRESS_CANCEL) {
+            currentScreen = SCREEN_CANCELLING;
+        }
+
+    } else {
+        isButtonBeingHeld = false;
+    }
+
+}
 
     void displayLoadingScreen() {
 
@@ -319,8 +360,8 @@ void loop() {
         //display.printf("Boiling point: %.1f F", boilingPointF); doesn't fit
         display.display();  
         // Redundancy to kill any lingering alerts, reset wemos, and turn off hue bulbs
-        setHue(BULB1,false,HueRed,255,255); //Set Hue bulbs to off
-        setHue(BULB1,false,HueBlue,255,255); //Set Hue bulb to blue for alert
+        setHue(BULB1,false); //Set Hue bulb1 to off
+        setHue(BULB2,false); //Set Hue bulb2 to off
         wemoWrite(WEMO_RADIO, LOW);    
     }     
     
@@ -336,14 +377,7 @@ void loop() {
 
         // Read TC here for most up-to-date value before display
             // Start timer for TC readings for every half-second
-        tempReadTimer.startTimer(tempReadMsec);
-        if (tempReadTimer.isTimerReady()) { //if 500 milliseconds has passed, read temp again
-            thermocouple.read();   
-            tempReadTimer.startTimer(tempReadMsec); //restart the timer for the next reading
-        }   
-             
-        tempC = thermocouple.getTemperature();
-        tempF = (9.0/5.0)* tempC + 32;
+        updateTemperature();       
 
         // Draw screen with image and temp readings
         display.drawBitmap(0, 0, BITMAP_THERMO, 40, 40, WHITE); // Thermometer graphic
@@ -359,8 +393,8 @@ void loop() {
         display.display();
 
         // Redundancy to kill any lingering alerts, reset wemos, and turn off hue bulbs
-        setHue(BULB1,false,HueRed,255,255); //Set Hue bulbs to off
-        setHue(BULB1,false,HueBlue,255,255); //Set Hue bulb to blue for alert
+        setHue(BULB1,false); //Set Hue bulb1 to off
+        setHue(BULB2,false); //Set Hue bulb2 to off
         wemoWrite(WEMO_RADIO, LOW);
     }
 
@@ -379,10 +413,7 @@ void loop() {
             
         // Read TC here for most up-to-date value before display
         // Start timer for TC readings for every half-second
-        if (tempReadTimer.isTimerReady()) { //if 500 milliseconds has passed, read temp again
-            thermocouple.read();   
-            tempReadTimer.startTimer(tempReadMsec); //restart the timer for the next reading
-        } 
+        updateTemperature();
 
         display.drawBitmap(0, 0, BITMAP_THERMO, 40, 40, WHITE); // Thermometer graphic
         display.setTextSize(2);
@@ -398,8 +429,8 @@ void loop() {
         display.display();
 
         // Redundancy to kill any lingering alerts, reset wemos, and turn off hue bulbs
-        setHue(BULB1,false,HueRed,255,255); //Set Hue bulbs to off
-        setHue(BULB1,false,HueBlue,255,255); //Set Hue bulb to blue for alert
+        setHue(BULB1,false); //Set Hue bulb1 to off
+        setHue(BULB2,false); //Set Hue bulb2 to off
         wemoWrite(WEMO_RADIO, LOW);
     }
 
@@ -414,18 +445,15 @@ void loop() {
 
         // Read TC here for most up-to-date value before display
         // Start timer for TC readings for every half-second
-        if (tempReadTimer.isTimerReady()) { //if 500 milliseconds has passed, read temp again
-            thermocouple.read();   
-            tempReadTimer.startTimer(tempReadMsec); //restart the timer for the next reading
-        } 
+        updateTemperature();
 
-        unsigned long timeSoFar = millis() - timerStartTime;
-        unsigned long minutes = timeSoFar / 60000;
-        unsigned long seconds = (timeSoFar % 60000) / 1000;
+        unsigned long cycleStartTime = millis() - cycleStartTime; 
+        unsigned long minutes = cycleStartTime / 60000;
+        unsigned long seconds = (cycleStartTime % 60000) / 1000;
 
         //Redundancy to kill any lingering alerts
-            setHue(BULB1,false,HueRed,255,255); //Set Hue bulbs to off
-            setHue(BULB1,false,HueBlue,255,255);
+            setHue(BULB1,false); //Set Hue bulb1 to off
+            setHue(BULB2,false); //Set Hue bulb2 to off
             //wemoWrite(WEMO_STOVE, LOW); //doesn't mess with stove unless you want it to!
             wemoWrite(WEMO_RADIO, LOW);
 
@@ -448,14 +476,11 @@ void loop() {
 
     //--------LOW TEMP ALERT SCREEN Shows temp, and alert message-------//
 
-        display.clearDisplay()
+        display.clearDisplay();
 
         // Read TC here for most up-to-date value before display
         // Start timer for TC readings for every half-second
-        if (tempReadTimer.isTimerReady()) { //if 500 milliseconds has passed, read temp again
-            thermocouple.read();   
-            tempReadTimer.startTimer(tempReadMsec); //restart the timer for the next reading
-        } 
+       updateTemperature();
 
         //Hue and Wemo alerts for low temp
         if (tempF < tempLow) {
@@ -481,10 +506,7 @@ void loop() {
 
        // Read TC here for most up-to-date value before display
         // Start timer for TC readings for every half-second
-        if (tempReadTimer.isTimerReady()) { //if 500 milliseconds has passed, read temp again
-            thermocouple.read();   
-            tempReadTimer.startTimer(tempReadMsec); //restart the timer for the next reading
-        } 
+        updateTemperature();
 
         //Hue and Wemo alerts for high temp
         if (tempF > tempHigh) {
@@ -511,13 +533,11 @@ void loop() {
 
         // Read TC here for most up-to-date value before display
         // Start timer for TC readings for every half-second
-        if (tempReadTimer.isTimerReady()) { //if 500 milliseconds has passed, read temp again
-            thermocouple.read();   
-            tempReadTimer.startTimer(tempReadMsec); //restart the timer for the next reading
-        }
+        updateTemperature();
+
         //  Cancel all alerts, reset wemos and turn off hue bulbs
-        setHue(BULB1,false,HueRed,255,255); //Set Hue bulbs to off
-        setHue(BULB1,false,HueBlue,255,255); //Set Hue bulb to blue for alert
+        setHue(BULB1,false); //Set Hue bulb1 to off
+        setHue(BULB2,false); //Set Hue bulb2 to off
         wemoWrite(WEMO_STOVE, LOW);
         wemoWrite(WEMO_RADIO, LOW);
 
