@@ -1,5 +1,5 @@
 /*
- * Project:     Saucemaker's Sentinel
+ * Project:     Saucier’s Sentinel - Hot Process Timer
  * File:        ui_theme.h  —  display layout, font sizes, and timing constants
  * Author:      Nicole
  * Date:        03/07/2026

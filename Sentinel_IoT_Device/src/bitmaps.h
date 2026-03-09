@@ -1,5 +1,5 @@
 /*
- * Project:  Saucemaker's Sentinel
+ * Project:  Saucier’s Sentinel - Hot Process Timer
  * File:     bitmaps.h  —  pixel art icons for the OLED display
  * Author:   Nicole
  * Date:     03/07/2026

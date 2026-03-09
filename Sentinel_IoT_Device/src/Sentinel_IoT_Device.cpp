@@ -1,5 +1,5 @@
 /*
- * Project:     Saucemaker's Sentinel — Hot Process Cycle Monitor
+ * Project:     Saucier’s Sentinel - Hot Process Timer
  * Author:      Nicole
  * Date:        03/07/2026
  *
@@ -648,7 +648,7 @@ void displayLoadingScreen() {
     display.setTextSize(FONT_BODY);
 
     display.setCursor(0, 42);
-    display.printf("Saucemaker's Sentinel");
+    display.printf("Saucier's Sentinel ");
 
     // Local boiling point — calculated from live air pressure.
     // boilingF is 0.0 until the BME280 reads; show a placeholder until ready.
