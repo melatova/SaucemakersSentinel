@@ -1,5 +1,3 @@
-![Saucier’s Sentinel Logo](saucemakersSentinel/Sentinel_IoT_Device/images/logo.png)
-
 [![Hackster Project](https://img.shields.io/badge/Hackster-Project-blue)](https://www.hackster.io/melatova/saucier-s-sentinel-hot-process-timer-f0ca6f)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Particle%20Photon%202-lightgrey)]()
