@@ -1,3 +1,10 @@
+![Saucier’s Sentinel Logo](images/logo.png)
+
+[![Hackster Project](https://img.shields.io/badge/Hackster-Project-blue)](https://www.hackster.io/melatova/saucier-s-sentinel-hot-process-timer-f0ca6f)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Platform](https://img.shields.io/badge/Platform-Particle%20Photon%202-lightgrey)]()
+[![Made With](https://img.shields.io/badge/Made%20With-Care%20%26%20Cayenne-red)]()
+
 -------------------------------------------
 --        Saucier’s Sentinel README      --
 -------------------------------------------
@@ -199,3 +206,9 @@ to monitor the hot‑process cycle.
 
 License
 MIT License — enjoy, remix, and cook boldly.
+
+Project write‑up on Hackster.io:
+https://www.hackster.io/melatova/saucier-s-sentinel-hot-process-timer-f0ca6f
+
+[![Hackster Project](https://img.shields.io/badge/Hackster-Project-blue)](https://www.hackster.io/melatova/saucier-s-sentinel-hot-process-timer-f0ca6f)
+
